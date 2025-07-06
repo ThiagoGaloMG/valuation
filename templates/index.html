@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Análise Financeira - Finanças Anticrise</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8fafc; /* slate-50 */
+            background-image: radial-gradient(#e2e8f0 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 50vh;
+        }
+        .nav-item {
+            position: relative;
+            cursor: pointer;
+            padding: 0.75rem 1.5rem;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            color: #475569; /* slate-600 */
+        }
+        .nav-item::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 3px;
+            background-color: #166534; /* green-800 */
+            transition: width 0.3s ease;
+        }
+        .nav-item.active {
+            color: #166534; /* green-800 */
+        }
+        .nav-item.active::after, .nav-item:hover::after {
+            width: 60%;
+        }
+        .sortable:hover {
+            background-color: #f1f5f9; /* slate-100 */
+            cursor: pointer;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(15, 23, 42, 0.7); /* slate-900 with opacity */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 90%;
+            width: 400px;
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay:not(.hidden) .modal-content {
+            transform: scale(1);
+        }
+        .spinner {
+            border: 4px solid #e5e7eb; /* gray-200 */
+            border-top: 4px solid #16a34a; /* green-600 */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .ai-analysis-box {
+            background-color: #f0fdf4; /* green-50 */
+            border: 1px solid #bbf7d0; /* green-200 */
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            text-align: left;
+        }
+        .ai-analysis-box h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #14532d; /* green-900 */
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px solid #dcfce7; /* green-100 */
+        }
+        .ai-analysis-box p, .ai-analysis-box ul {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #166534; /* green-800 */
+        }
+        .ai-analysis-box ul {
+            list-style-type: disc;
+            list-style-position: inside;
+            padding-left: 0.5rem;
+        }
+        .ai-analysis-box li {
+            margin-bottom: 0.25rem;
+        }
+        .data-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0; /* slate-200 */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .data-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <header class="text-center mb-10">
+            <h1 class="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-800 to-green-600">Sistema de Análise Financeira</h1>
+            <p class="text-lg text-slate-600 mt-3">Uma visão interativa sobre o valuation de empresas da B3</p>
+        </header>
+
+        <nav id="navigation" class="flex justify-center items-center border-b border-slate-200 mb-8 bg-white/70 backdrop-blur-sm rounded-lg shadow-sm sticky top-4 z-50">
+            <div data-view="overview" class="nav-item active">Visão Geral</div>
+            <div data-view="ranking" class="nav-item">Ranking Completo</div>
+            <div data-view="details" class="nav-item">Análise Detalhada</div>
+            <div data-view="assumptions" class="nav-item">Premissas</div>
+        </nav>
+
+        <main id="app-content">
+            <!-- Dynamic content will be rendered here -->
+        </main>
+
+        <footer class="text-center mt-12 pt-6 border-t border-slate-200">
+            <p class="text-xs text-slate-500 max-w-4xl mx-auto mb-4">
+                <strong>Disclaimer:</strong> As informações e análises apresentadas neste site são geradas por um modelo automatizado e destinam-se exclusivamente a fins educacionais e demonstrativos. Elas não constituem, em nenhuma hipótese, uma recomendação de compra, venda ou manutenção de qualquer ativo financeiro. Investimentos envolvem riscos e decisões devem ser tomadas com base em sua própria análise e/ou com o auxílio de um profissional qualificado.
+            </p>
+            <p class="text-sm text-slate-500">Desenvolvido como uma demonstração interativa. Análises de IA geradas por Gemini.</p>
+        </footer>
+    </div>
+    
+    <div id="modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div id="modal-spinner" class="spinner"></div>
+            <p id="modal-message" class="text-lg font-medium text-slate-700">Processando...</p>
+        </div>
+    </div>
+
+    <script>
+        const navigation = document.getElementById('navigation');
+        const appContent = document.getElementById('app-content');
+        const modal = document.getElementById('modal');
+        const modalMessage = document.getElementById('modal-message');
+        const modalSpinner = document.getElementById('modal-spinner');
+
+        // --- GLOBAL STATE ---
+        let allCompaniesData = [];
+        let dataAverages = {};
+        let currentView = 'overview';
+        let currentTicker = null;
+        let sortConfig = { key: 'Upside', direction: 'desc' };
+        
+        // --- FORMATTING FUNCTIONS ---
+        const formatCurrency = (value) => {
+            if (value === null || typeof value === 'undefined' || isNaN(value)) return 'N/D';
+            if (Math.abs(value) >= 1e12) return `R$ ${(value / 1e12).toFixed(2)}T`;
+            if (Math.abs(value) >= 1e9) return `R$ ${(value / 1e9).toFixed(2)}B`;
+            if (Math.abs(value) >= 1e6) return `R$ ${(value / 1e6).toFixed(2)}M`;
+            return `R$ ${value.toFixed(2)}`;
+        };
+        const formatPercentage = (value) => (value === null || typeof value === 'undefined' || isNaN(value)) ? 'N/D' : `${(value * 100).toFixed(2)}%`;
+        const getSemanticColor = (value) => (value !== null && typeof value !== 'undefined' && !isNaN(value)) ? (value >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-slate-600';
+
+        // --- VIEW RENDERING FUNCTIONS ---
+        function renderOverview() {
+            if (allCompaniesData.length === 0) {
+                 appContent.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow-sm"><p class="text-slate-600">Nenhuma empresa encontrada após a aplicação dos filtros. Verifique os dados de origem ou os critérios de filtragem.</p></div>`;
+                 return;
+            }
+
+            const sortedByUpside = [...allCompaniesData].sort((a, b) => b.Upside - a.Upside);
+            const top5Companies = sortedByUpside.slice(0, 5);
+            const topEVA = [...allCompaniesData].sort((a, b) => b.EVA - a.EVA)[0];
+
+            appContent.innerHTML = `
+                <div class="space-y-8">
+                    <section>
+                         <p class="text-center text-slate-600 max-w-3xl mx-auto mb-8">
+                            Esta visão geral oferece um resumo do mercado, destacando as principais métricas e as empresas com melhor desempenho. Use os cartões e o gráfico para obter insights rápidos sobre os criadores de valor e as oportunidades de crescimento.
+                        </p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                            <div class="data-card"><h3 class="text-sm font-medium text-slate-500 flex items-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-building mr-2" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M14.763.075A.5.5 0 0 1 15 .5v15a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5V14h-1v1.5a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5V.5a.5.5 0 0 1 .342-.474L6 3.14V11h1V2.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5V11h1V2.14l1.963-1.228zM5 12v2.5a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V12h3zm6 0v2.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5V12h3z"/></svg>Empresas Analisadas</h3><p class="text-3xl font-bold text-slate-900 mt-2">${allCompaniesData.length}</p></div>
+                            <div class="data-card"><h3 class="text-sm font-medium text-slate-500 flex items-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-graph-up-arrow mr-2" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M0 0h1v15h15v1H0V0zm10 3.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0V4.9l-3.613 4.417a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61L13.445 4H10.5a.5.5 0 0 1-.5-.5z"/></svg>Upside Médio</h3><p class="text-3xl font-bold ${getSemanticColor(dataAverages.upside_avg)} mt-2">${formatPercentage(dataAverages.upside_avg)}</p></div>
+                            <div class="data-card cursor-pointer" onclick="navigateToDetails('${topEVA.Ticker}')"><h3 class="text-sm font-medium text-slate-500 flex items-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trophy-fill mr-2" viewBox="0 0 16 16"><path d="M2.5.5A.5.5 0 0 1 3 .5h10a.5.5 0 0 1 .5.5c0 .538-.012 1.05-.034 1.536a3 3 0 1 1-1.133 5.89c-.79 1.865-1.878 2.777-2.833 3.011v2.173l1.425.356c.194.048.377.135.537.255l.653.515c.164.13.294.306.386.503l.286.675c.095.225.095.48-.002.704a.998.998 0 0 1-.416.588l-.335.25a1 1 0 0 1-.615.19h-1.48a1 1 0 0 1-.615-.19l-.335-.25a.998.998 0 0 1-.416-.588c-.097-.224-.097-.479-.002-.704l.286-.675c.092-.197.222-.373.386-.503l.653-.515a1.126 1.126 0 0 0 .537-.255L9.5 13.173V11.16c-.955-.234-2.043-1.146-2.833-3.012a3 3 0 1 1-1.132-5.89A33.076 33.076 0 0 1 2.5 1H3a.5.5 0 0 1-.5-.5z"/></svg>Top Criadora de Valor (EVA)</h3><p class="text-2xl font-bold text-green-700 mt-2">${topEVA.Nome}</p><p class="text-lg font-semibold ${getSemanticColor(topEVA.EVA)}">${formatCurrency(topEVA.EVA)}</p></div>
+                            <div class="data-card cursor-pointer" onclick="navigateToDetails('${top5Companies[0].Ticker}')"><h3 class="text-sm font-medium text-slate-500 flex items-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-gem mr-2" viewBox="0 0 16 16"><path d="M3.1.7a.5.5 0 0 1 .4-.2h9a.5.5 0 0 1 .4.2l2.976 3.974c.149.198.224.44.224.684v1.842a.5.5 0 0 1-.224.423l-4.28 3.21c-.182.137-.433.137-.616 0L3.1 9.044a.5.5 0 0 1-.224-.423V5.358c0-.244.075-.486.224-.684L3.1.7zM1.4 5.558a.5.5 0 0 0 .224.423l4.28 3.21c.182.137.433.137.616 0l4.28-3.21a.5.5 0 0 0 .224-.423V5.358a1.5 1.5 0 0 0-.671-1.22L8.498 1.1a.5.5 0 0 0-.996 0L3.87 4.138A1.5 1.5 0 0 0 3.2 5.358v.2z"/></svg>Maior Potencial (Upside)</h3><p class="text-2xl font-bold text-green-700 mt-2">${top5Companies[0].Nome}</p><p class="text-lg font-semibold ${getSemanticColor(top5Companies[0].Upside)}">${formatPercentage(top5Companies[0].Upside)}</p></div>
+                        </div>
+                    </section>
+                    <section class="data-card">
+                        <h2 class="text-xl font-bold text-slate-900 mb-4">Top 5 Empresas por Potencial de Upside</h2>
+                         <div class="chart-container"><canvas id="top5Chart"></canvas></div>
+                    </section>
+                </div>`;
+            createTop5Chart(top5Companies.reverse());
+        }
+
+        function renderRanking(searchTerm = '') {
+            if (allCompaniesData.length === 0) return;
+            const filteredData = searchTerm
+                ? allCompaniesData.filter(c => c.Nome.toLowerCase().includes(searchTerm.toLowerCase()) || c.Ticker.toLowerCase().includes(searchTerm.toLowerCase()))
+                : allCompaniesData;
+
+            const sortedData = [...filteredData].sort((a, b) => {
+                const valA = a[sortConfig.key];
+                const valB = b[sortConfig.key];
+                const direction = sortConfig.direction === 'asc' ? 1 : -1;
+                if (valA === null || typeof valA === 'undefined' || valA < valB) return -1 * direction;
+                if (valB === null || typeof valB === 'undefined' || valA > valB) return 1 * direction;
+                return 0;
+            });
+
+            appContent.innerHTML = `
+                <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-slate-200">
+                    <p class="text-slate-600 max-w-3xl mx-auto mb-6 text-center">
+                        Explore o ranking completo de todas as empresas analisadas. Use a busca para filtrar por nome ou ticker e clique nos cabeçalhos das colunas para reordenar a lista e identificar tendências e outliers.
+                    </p>
+                    <div class="mb-4"><input type="text" id="search-input" placeholder="Buscar por empresa ou ticker..." class="w-full max-w-sm p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:outline-none transition-shadow" value="${searchTerm}"></div>
+                    <div class="overflow-x-auto rounded-lg border border-slate-200">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50">
+                                <tr class="border-b border-slate-200">
+                                    <th class="p-3 text-sm font-semibold text-slate-600">Rank</th>
+                                    <th class="p-3 text-sm font-semibold text-slate-600 sortable" data-sortkey="Ticker">Ticker</th>
+                                    <th class="p-3 text-sm font-semibold text-slate-600 sortable" data-sortkey="Nome">Nome</th>
+                                    <th class="p-3 text-sm font-semibold text-slate-600 sortable" data-sortkey="Upside">Upside</th>
+                                    <th class="p-3 text-sm font-semibold text-slate-600 sortable" data-sortkey="ROIC">ROIC</th>
+                                    <th class="p-3 text-sm font-semibold text-slate-600 sortable" data-sortkey="WACC">WACC</th>
+                                    <th class="p-3 text-sm font-semibold text-slate-600 sortable" data-sortkey="Spread">Spread</th>
+                                    <th class="p-3 text-sm font-semibold text-slate-600 sortable" data-sortkey="EVA_percent">EVA (%)</th>
+                                    <th class="p-3 text-sm font-semibold text-slate-600 sortable" data-sortkey="EFV_percent">EFV (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${sortedData.map((c, index) => `
+                                    <tr class="hover:bg-slate-50 cursor-pointer transition-colors" onclick="navigateToDetails('${c.Ticker}')">
+                                        <td class="p-3 font-medium text-slate-500">${index + 1}</td>
+                                        <td class="p-3 font-mono text-green-700 font-semibold">${c.Ticker}</td>
+                                        <td class="p-3 text-slate-700">${c.Nome}</td>
+                                        <td class="p-3 font-semibold ${getSemanticColor(c.Upside)}">${formatPercentage(c.Upside)}</td>
+                                        <td class="p-3 font-semibold ${getSemanticColor(c.ROIC)}">${formatPercentage(c.ROIC)}</td>
+                                        <td class="p-3 font-semibold text-slate-700">${formatPercentage(c.WACC)}</td>
+                                        <td class="p-3 font-semibold ${getSemanticColor(c.Spread)}">${formatPercentage(c.Spread)}</td>
+                                        <td class="p-3 font-semibold ${getSemanticColor(c.EVA_percent)}">${formatPercentage(c.EVA_percent)}</td>
+                                        <td class="p-3 font-semibold ${getSemanticColor(c.EFV_percent)}">${formatPercentage(c.EFV_percent)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+            
+            document.getElementById('search-input').addEventListener('input', (e) => renderRanking(e.target.value));
+            document.querySelectorAll('.sortable').forEach(header => header.addEventListener('click', () => {
+                const sortKey = header.dataset.sortkey;
+                sortConfig.direction = (sortConfig.key === sortKey && sortConfig.direction === 'desc') ? 'asc' : 'desc';
+                sortConfig.key = sortKey;
+                renderRanking(document.getElementById('search-input').value);
+            }));
+        }
+
+        function renderDetails() {
+            if (!currentTicker || allCompaniesData.length === 0) {
+                 appContent.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow-sm"><p class="text-slate-600">Por favor, selecione uma empresa no Ranking ou na Visão Geral para ver seus detalhes.</p></div>`;
+                 return;
+            }
+
+            const company = allCompaniesData.find(c => c.Ticker === currentTicker);
+            if (!company) { appContent.innerHTML = 'Empresa não encontrada.'; return; }
+            
+            appContent.innerHTML = `
+                <div class="space-y-8">
+                    <section class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-slate-200">
+                        <div class="flex flex-wrap justify-between items-center mb-6">
+                            <h2 class="text-2xl font-bold text-slate-900">Análise de: ${company.Nome} (${company.Ticker})</h2>
+                            <div class="w-full sm:w-auto mt-4 sm:mt-0"><select id="company-selector" class="w-full sm:w-64 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:outline-none transition-shadow">${allCompaniesData.map(c => `<option value="${c.Ticker}" ${c.Ticker === currentTicker ? 'selected' : ''}>${c.Nome} (${c.Ticker})</option>`).join('')}</select></div>
+                        </div>
+                        <p class="text-slate-600 max-w-3xl mb-6">Mergulhe nos detalhes financeiros desta empresa. Os cartões abaixo mostram as métricas fundamentais de valuation, enquanto os gráficos oferecem uma comparação visual com a média do mercado e uma decomposição do conceito de EVA.</p>
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                             <div class="p-4 rounded-lg bg-slate-50 border border-slate-200"><h3 class="text-sm font-medium text-slate-500">Preço Atual</h3><p class="text-xl font-bold">${formatCurrency(company.Preco_Atual)}</p></div>
+                             <div class="p-4 rounded-lg bg-slate-50 border border-slate-200"><h3 class="text-sm font-medium text-slate-500">Preço Justo</h3><p class="text-xl font-bold ${getSemanticColor(company.Upside)}">${formatCurrency(company.Preco_Justo)}</p></div>
+                             <div class="p-4 rounded-lg bg-slate-50 border border-slate-200"><h3 class="text-sm font-medium text-slate-500">Upside Potencial</h3><p class="text-xl font-bold ${getSemanticColor(company.Upside)}">${formatPercentage(company.Upside)}</p></div>
+                             <div class="p-4 rounded-lg bg-slate-50 border border-slate-200"><h3 class="text-sm font-medium text-slate-500">Valor de Mercado</h3><p class="text-xl font-bold">${formatCurrency(company.Market_Cap)}</p></div>
+                             <div class="p-4 rounded-lg bg-slate-50 border border-slate-200"><h3 class="text-sm font-medium text-slate-500">ROIC</h3><p class="text-xl font-bold ${getSemanticColor(company.ROIC)}">${formatPercentage(company.ROIC)}</p></div>
+                             <div class="p-4 rounded-lg bg-slate-50 border border-slate-200"><h3 class="text-sm font-medium text-slate-500">WACC</h3><p class="text-xl font-bold">${formatPercentage(company.WACC)}</p></div>
+                             <div class="p-4 rounded-lg bg-slate-50 border border-slate-200"><h3 class="text-sm font-medium text-slate-500">Spread (ROIC-WACC)</h3><p class="text-xl font-bold ${getSemanticColor(company.Spread)}">${formatPercentage(company.Spread)}</p></div>
+                             <div class="p-4 rounded-lg bg-slate-50 border border-slate-200"><h3 class="text-sm font-medium text-slate-500">EVA</h3><p class="text-xl font-bold ${getSemanticColor(company.EVA)}">${formatCurrency(company.EVA)}</p></div>
+                        </div>
+                    </section>
+                    
+                    <section class="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+                        <h3 class="text-xl font-bold text-slate-900 mb-4">Análise Qualitativa com IA</h3>
+                        <p class="text-slate-600 mb-4">Clique no botão para usar a API do Gemini e gerar uma análise qualitativa baseada nos indicadores financeiros da empresa.</p>
+                        <button id="generate-ai-btn" class="bg-gradient-to-r from-green-700 to-green-600 text-white font-bold py-2 px-5 rounded-lg hover:shadow-lg hover:from-green-800 hover:to-green-700 transition-all duration-300 transform hover:scale-105 inline-flex items-center gap-2">Gerar Análise com IA</button>
+                        <div id="ai-analysis-result" class="mt-6"></div>
+                    </section>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <section class="data-card"><h3 class="text-xl font-bold text-slate-900 mb-4">Perfil da Empresa vs. Média do Mercado</h3><div class="chart-container"><canvas id="radarChart"></canvas></div></section>
+                        <section class="data-card"><h3 class="text-xl font-bold text-slate-900 mb-4">Decomposição do EVA (Valor Econômico Adicionado)</h3><div class="chart-container"><canvas id="evaChart"></canvas></div></section>
+                    </div>
+                </div>`;
+            
+            document.getElementById('company-selector').addEventListener('change', (e) => { currentTicker = e.target.value; render(); });
+            document.getElementById('generate-ai-btn').addEventListener('click', () => handleAiAnalysis(company));
+
+            const capitalCost = company.Capital_Empregado * company.WACC;
+            createRadarChart(company);
+            createEvaChart(company.NOPAT, capitalCost);
+        }
+
+        function renderAssumptions() {
+             appContent.innerHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-md border border-slate-200 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="prose prose-green max-w-none">
+                        <h2 class="text-xl font-bold text-slate-900 mb-4">Entendendo as Premissas</h2>
+                        <p class="text-slate-600">
+                           As premissas macroeconômicas são fundamentais para a análise e projeção de cenários econômicos, sendo utilizadas em diversas áreas como planejamento financeiro, investimentos e tomada de decisões empresariais. A análise desses dados permite identificar tendências e antecipar possíveis impactos de eventos econômicos.
+                        </p>
+                        
+                        <h3 class="font-semibold text-slate-800 mt-6 mb-2">Principais Indicadores:</h3>
+                        <ul class="space-y-2 text-slate-600">
+                            <li><strong>PIB (Produto Interno Bruto):</strong> Medida do valor total de bens e serviços produzidos, indicando o crescimento da economia.</li>
+                            <li><strong>Inflação (IPCA):</strong> Mede a variação de preços, impactando o poder de compra.</li>
+                            <li><strong>Taxa de Juros (Selic):</strong> Taxa básica que influencia o custo do crédito e os investimentos.</li>
+                            <li><strong>Taxa de Câmbio:</strong> Afeta o comércio internacional e a competitividade.</li>
+                        </ul>
+
+                        <h3 class="font-semibold text-slate-800 mt-6 mb-2">Fontes de Dados:</h3>
+                         <ul class="space-y-2 text-slate-600">
+                            <li><strong>IBGE:</strong> Divulga dados sobre PIB, inflação, consumo e desemprego.</li>
+                            <li><strong>Banco Central do Brasil:</strong> Publica informações sobre taxas de juros, câmbio e outros indicadores.</li>
+                            <li><strong>Ipea:</strong> Realiza análises e projeções macroeconômicas.</li>
+                         </ul>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900 mb-4">Premissas do Modelo</h2>
+                        <div id="assumptions-list" class="space-y-3">Carregando...</div>
+                    </div>
+                </div>`;
+             fetch(window.location.origin + '/market_info')
+                .then(res => res.ok ? res.json() : Promise.reject(res))
+                .then(data => {
+                    const list = document.getElementById('assumptions-list');
+                    list.innerHTML = Object.entries(data).map(([key, value]) => `
+                        <div class="flex justify-between items-center p-4 bg-slate-50 rounded-lg border border-slate-200">
+                            <span class="font-medium text-slate-700">${key}</span>
+                            <span class="font-bold text-green-700">${value}</span>
+                        </div>
+                    `).join('');
+                })
+                .catch(async (res) => {
+                    const error = await res.json().catch(() => ({error: 'Erro desconhecido'}));
+                    document.getElementById('assumptions-list').innerHTML = `<p class="text-red-500">Falha ao carregar premissas: ${error.error}</p>`;
+                });
+        }
+        
+        // --- MODAL & AI FUNCTIONS ---
+        function showModal(message, showSpinner = true) {
+            modalMessage.textContent = message;
+            modalSpinner.style.display = showSpinner ? 'block' : 'none';
+            modal.classList.remove('hidden');
+        }
+
+        function hideModal() {
+            modal.classList.add('hidden');
+        }
+        
+        function simpleMarkdownToHtml(md) {
+            return md
+                .replace(/\*\*(.*?)\*\*/g, '<h4>$1</h4>')
+                .replace(/\* (.*?)(?=\n\*|\n\n|$)/g, '<li>$1</li>')
+                .replace(/(\r\n|\n|\r)/g, '<br>')
+                .replace(/<\/li><br><li>/g, '</li><li>')
+                .replace(/<h4><br>/g, '<h4>')
+                .replace(/<br><ul>/g, '<ul>')
+                .replace(/<\/li><br>/g, '</li>');
+        }
+
+        async function handleAiAnalysis(company) {
+            const resultDiv = document.getElementById('ai-analysis-result');
+            resultDiv.innerHTML = '';
+            showModal('Gerando análise com IA...');
+            try {
+                const prompt = `Você é um analista financeiro especialista em valuation. Crie uma análise qualitativa para a empresa ${company.Nome} (${company.Ticker}).
+
+Baseado estritamente nos seguintes dados quantitativos:
+- ROIC: ${formatPercentage(company.ROIC)}
+- WACC (Custo de Capital): ${formatPercentage(company.WACC)}
+- Spread (ROIC - WACC): ${formatPercentage(company.Spread)}
+- EVA (Valor Econômico Adicionado): ${formatCurrency(company.EVA)}
+- Potencial de Upside (Preço Justo vs Preço Atual): ${formatPercentage(company.Upside)}
+
+Gere um relatório conciso em Markdown com as seguintes seções:
+
+**1. Resumo da Análise:** Um parágrafo curto resumindo a situação da empresa com base nos indicadores.
+
+**2. Pontos Fortes:**
+* Liste 2-3 pontos fortes evidentes a partir dos dados.
+
+**3. Pontos de Atenção:**
+* Liste 2-3 pontos que exigem cautela.
+
+**4. Perspectiva Geral:**
+* Conclua com uma perspectiva geral sobre o investimento na empresa.
+
+Seja direto, objetivo e use uma linguagem acessível para um investidor. Não invente informações que não possam ser inferidas dos dados fornecidos.`;
+                
+                let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                const result = await response.json();
+                if (result.candidates?.[0]?.content?.parts?.[0]) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    resultDiv.innerHTML = `<div class="ai-analysis-box">${simpleMarkdownToHtml(text)}</div>`;
+                } else { throw new Error("Resposta da API inválida."); }
+            } catch (error) {
+                console.error("Erro ao gerar análise:", error);
+                resultDiv.innerHTML = `<div class="p-4 rounded-md bg-red-100 text-red-700">Ocorreu um erro ao gerar a análise. (${error.message})</div>`;
+            } finally {
+                hideModal();
+            }
+        }
+        
+        // --- NAVIGATION & MAIN RENDER ---
+        function navigateTo(view) { currentView = view; render(); }
+        window.navigateToDetails = function(ticker) { currentTicker = ticker; navigateTo('details'); }
+
+        function render() {
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.view === currentView);
+            });
+            switch (currentView) {
+                case 'overview': renderOverview(); break;
+                case 'ranking': renderRanking(); break;
+                case 'details': renderDetails(); break;
+                case 'assumptions': renderAssumptions(); break;
+                default: renderOverview();
+            }
+        }
+        
+        navigation.addEventListener('click', (e) => { if (e.target.matches('.nav-item')) { navigateTo(e.target.dataset.view); } });
+
+        // --- CHART CREATION FUNCTIONS ---
+        let charts = {};
+        function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+        function createTop5Chart(data) {
+            destroyChart('top5Chart');
+            const ctx = document.getElementById('top5Chart')?.getContext('2d');
+            if(!ctx) return;
+            charts['top5Chart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(c => c.Nome),
+                    datasets: [{ label: 'Potencial de Upside', data: data.map(c => c.Upside * 100), backgroundColor: '#16a34a' }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${context.parsed.x.toFixed(2)}%` } } }, scales: { x: { beginAtZero: true, ticks: { callback: (value) => `${value}%` } } } }
+            });
+        }
+        
+        function createRadarChart(company) {
+            destroyChart('radarChart');
+            const ctx = document.getElementById('radarChart')?.getContext('2d');
+            if(!ctx) return;
+            
+            charts['radarChart'] = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['ROIC', 'Upside', 'Spread'],
+                    datasets: [
+                        { label: company.Ticker, data: [company.ROIC * 100, company.Upside * 100, company.Spread * 100], backgroundColor: 'rgba(22, 163, 74, 0.2)', borderColor: 'rgba(22, 163, 74, 1)', borderWidth: 2 },
+                        { label: 'Média do Mercado', data: [dataAverages.roic_avg * 100, dataAverages.upside_avg * 100, dataAverages.spread_avg * 100], backgroundColor: 'rgba(107, 114, 128, 0.2)', borderColor: 'rgba(107, 114, 128, 1)', borderWidth: 2 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { r: { angleLines: { display: false }, pointLabels: { font: { size: 14 } }, ticks: { callback: (value) => `${value}%` } } }, plugins: { legend: { labels: { font: { size: 14 }}}, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${context.formattedValue}%` } } } }
+            });
+        }
+
+        function createEvaChart(nopat, capitalCost) {
+            destroyChart('evaChart');
+            const ctx = document.getElementById('evaChart')?.getContext('2d');
+            if(!ctx) return;
+            const eva = nopat - capitalCost;
+            charts['evaChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Componentes do Valor'],
+                    datasets: [
+                        { label: 'Lucro Operacional (NOPAT)', data: [nopat], backgroundColor: '#10b981' },
+                        { label: 'Custo de Capital', data: [capitalCost], backgroundColor: '#f43f5e' },
+                        { label: 'EVA (Valor Gerado)', data: [eva], backgroundColor: eva > 0 ? '#16a34a' : '#f97316' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { callback: (value) => formatCurrency(value) } } }, plugins: { tooltip: { callbacks: { label: (context) => `${context.dataset.label || ''}: ${formatCurrency(context.parsed.y)}` } } } }
+            });
+        }
+
+        // --- DATA LOADING & INITIALIZATION ---
+        async function initializeApp() {
+            showModal('Carregando dados da análise...', true);
+            try {
+                const response = await fetch(window.location.origin + '/run_analysis');
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({error: `Erro no servidor: ${response.statusText}`}));
+                    throw new Error(errorData.error || `Erro no servidor: ${response.statusText}`);
+                }
+                allCompaniesData = await response.json();
+                
+                if (!allCompaniesData || allCompaniesData.length === 0) {
+                    appContent.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow-sm"><h2 class="text-xl font-bold mb-2">Nenhuma empresa encontrada</h2><p class="text-slate-600">A análise foi concluída, mas nenhuma empresa passou nos filtros de sanidade (WACC < 40% e Upside < 1000%). Isso pode ocorrer se os dados de mercado atuais estiverem gerando valores extremos.</p></div>`;
+                    return;
+                }
+
+                const validMetrics = allCompaniesData.filter(c => c && typeof c.ROIC === 'number');
+                dataAverages.roic_avg = validMetrics.reduce((acc, m) => acc + (m.ROIC || 0), 0) / validMetrics.length;
+                dataAverages.upside_avg = validMetrics.reduce((acc, m) => acc + (m.Upside || 0), 0) / validMetrics.length;
+                dataAverages.spread_avg = validMetrics.reduce((acc, m) => acc + (m.Spread || 0), 0) / validMetrics.length;
+                
+                if (allCompaniesData.length > 0) {
+                   const sorted = [...allCompaniesData].sort((a,b) => b.Upside - a.Upside);
+                   currentTicker = sorted[0].Ticker;
+                }
+
+                render();
+            } catch (error) {
+                console.error("Falha ao carregar dados:", error);
+                showModal(`Falha ao carregar dados da análise: ${error.message}`, false);
+            } finally {
+                if(allCompaniesData && allCompaniesData.length > 0) hideModal();
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+    </script>
+</body>
+</html>
