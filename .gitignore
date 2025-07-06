@@ -1,0 +1,10 @@
+# Ambiente Virtual
+meu_site_venv/
+
+# Arquivos de Cache do Python
+__pycache__/
+*.pyc
+
+# Arquivos de configuração de IDEs (opcional)
+.vscode/
+.idea/
